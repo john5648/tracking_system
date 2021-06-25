@@ -32,6 +32,7 @@
 #include "log.h"
 #include "param.h"
 #include "lpsTdoa2Tag.h"
+#include "lpsTwr2Tag.h"
 
 #include "stabilizer_types.h"
 #include "cfassert.h"

@@ -56,6 +56,7 @@
 #include "lpsTdoa2Tag.h"
 #include "lpsTdoa3Tag.h"
 #include "lpsTwrTag.h"
+#include "lpsTwr2Tag.h"
 
 
 #define CS_PIN DECK_GPIO_IO1
@@ -84,6 +85,7 @@
 
 #define DEFAULT_RX_TIMEOUT 10000
 
+#define LPS_TWR2_ENABLE 1
 // The anchor position can be set using parameters
 // As an option you can set a static position in this file and set
 // combinedAnchorPositionOk to enable sending the anchor rangings to the Kalman filter
@@ -94,6 +96,8 @@ static lpsAlgoOptions_t algoOptions = {
   .userRequestedMode = lpsMode_TDoA2,
 #elif LPS_TDOA3_ENABLE
   .userRequestedMode = lpsMode_TDoA3,
+#elif LPS_TWR2_ENABLE
+  .userRequestedMode = lpsMode_TWR2,
 #elif defined(LPS_TWR_ENABLE)
   .userRequestedMode = lpsMode_TWR,
 #else
@@ -114,12 +118,15 @@ struct {
   [lpsMode_TWR] = {.algorithm = &uwbTwrTagAlgorithm, .name="TWR"},
   [lpsMode_TDoA2] = {.algorithm = &uwbTdoa2TagAlgorithm, .name="TDoA2"},
   [lpsMode_TDoA3] = {.algorithm = &uwbTdoa3TagAlgorithm, .name="TDoA3"},
+  [lpsMode_TWR2] = {.algorithm = &uwbTwr2TagAlgorithm, .name="TWR2"},
 };
 
 #if LPS_TDOA_ENABLE
 static uwbAlgorithm_t *algorithm = &uwbTdoa2TagAlgorithm;
 #elif LPS_TDOA3_ENABLE
 static uwbAlgorithm_t *algorithm = &uwbTdoa3TagAlgorithm;
+#elif LPS_TWR2_ENABLE
+static uwbAlgorithm_t *algorithm = &uwbTwr2TagAlgorithm;
 #else
 static uwbAlgorithm_t *algorithm = &uwbTwrTagAlgorithm;
 #endif
@@ -353,6 +360,9 @@ static void uwbTask(void* parameters) {
 
   while(1) {
     xSemaphoreTake(algoSemaphore, portMAX_DELAY);
+
+    algoOptions.userRequestedMode = switchAgentMode();
+
     handleModeSwitch();
     xSemaphoreGive(algoSemaphore);
 
