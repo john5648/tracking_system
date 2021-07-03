@@ -43,8 +43,13 @@
 
 // Timestamp counter frequency
 #define LOCODECK_TS_FREQ (499.2e6 * 128)
-
-#define LOCODECK_ANTENNA_OFFSET 154.6   // In meters
+/*
+Changed LOCODECK_ANTENNA_OFFSET 154.6 to 154.3
+For people who want to change,
+increase LOCODECK_ANTENNA_OFFSET to decrease ranging distance and
+decrease LOCODECK_ANTENNA_OFFSET to increase ranging distance.
+*/
+#define LOCODECK_ANTENNA_OFFSET 154.3   // In meters
 #define LOCODECK_ANTENNA_DELAY  ((LOCODECK_ANTENNA_OFFSET * LOCODECK_TS_FREQ) / SPEED_OF_LIGHT) // In radio ticks
 
 typedef enum uwbEvent_e {
