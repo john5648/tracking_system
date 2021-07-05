@@ -64,10 +64,15 @@ static lpsTwr2AlgoOptions_t defaultOptions = {
 #define basicAddr 0xbccf000000000000
 // selfID = last number of own address, if URI = 'radio://0/120/2M/E7E7E7E7EB' then selfID = 11
 static uint8_t selfID; 
+static uint8_t droneaddress[5] = {11,12,13,14,15};
+static uint8_t UAVnum=3;
 static locoAddress_t selfAddress;
 static float filtered_dis;
 
 int MODE = 4;
+static int strikeout;
+bool twragain = false;
+
 int switchAgentMode(){
     return MODE;
 }
@@ -79,7 +84,9 @@ typedef struct {
 static twr2State_t state;
 static lpsTwr2AlgoOptions_t* options = &defaultOptions;
 
-static uint8_t current_receiveID;
+static uint8_t current_receiveID; // transmit to which crazyflie
+
+static bool checkTurn; // check if the receiving UWB turns into transmitting mode
 
 // Outlier rejection
 #define RANGING_HISTORY_LENGTH 32
@@ -120,6 +127,8 @@ static void txcallback(dwDevice_t *dev)
       break;
     case LPS_TWR_REPORT:
       break;
+    case LPS_TWR_REPORT+1:
+      break;
   }
 }
 
@@ -135,7 +144,11 @@ static uint32_t rxcallback(dwDevice_t *dev) {
 
   dwGetData(dev, (uint8_t*)&rxPacket, dataLength);
 
-  if(rxPacket.destAddress != selfAddress){
+  // go back to TDOA2 if next crazyflie starts twr algorithm
+  if(selfID !=10 && (rxPacket.sourceAddress & 0x0f)>10){
+    MODE = lpsMode_TDoA2;
+    return 0;
+  }else if(rxPacket.destAddress != selfAddress){
     dwNewReceive(dev);
     dwSetDefaults(dev);
     dwStartReceive(dev);
@@ -245,7 +258,18 @@ static uint32_t rxcallback(dwDevice_t *dev) {
         filtered_dis = state.distance;
       }
 
-      return 0;
+      txPacket.destAddress = basicAddr + droneaddress[(selfID-10)%UAVnum];
+      txPacket.sourceAddress = selfAddress;
+
+      txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_REPORT+1;
+      txPacket.payload[LPS_TWR_SEQ] = rxPacket.payload[LPS_TWR_SEQ];
+
+      dwNewTransmit(dev);
+      dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH+2);
+
+      dwWaitForResponse(dev, true);
+      dwStartTransmit(dev);
+
       break;
     }
   }
@@ -292,7 +316,31 @@ static uint32_t twrTagOnEvent(dwDevice_t *dev, uwbEvent_t event)
       return MAX_TIMEOUT;
       break;
     case eventTimeout:  // Comes back to timeout after each ranging attempt
-      initiateRanging(dev);
+      if(checkTurn){
+        strikeout = strikeout + 1;
+      }
+      if(strikeout >=3){
+        twragain = true;
+        MODE = lpsMode_TDoA2;
+        return MAX_TIMEOUT;
+      }
+      strikeout = strikeout + 1;
+      if (rangingOk == false)
+      {
+        initiateRanging(dev);
+      }else if(rangingOk == true){
+        txPacket.destAddress = basicAddr + droneaddress[(selfID-10)%UAVnum];
+        txPacket.sourceAddress = selfAddress;
+
+        txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_REPORT+1;
+        txPacket.payload[LPS_TWR_SEQ] = 0;
+
+        dwNewTransmit(dev);
+        dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH+2);
+
+        dwWaitForResponse(dev, true);
+        dwStartTransmit(dev);      
+      }  
       break;
     case eventReceiveTimeout:
     case eventReceiveFailed:
@@ -321,6 +369,7 @@ static void twrTagInit(dwDevice_t *dev)
   memset(&final_rx, 0, sizeof(final_rx));
 
   curr_seq = 0;
+  strikeout = 0;
 
   selfID = (uint8_t)(((configblockGetRadioAddress()) & 0x000000000f));
   selfAddress = basicAddr + selfID;

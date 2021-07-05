@@ -85,7 +85,7 @@
 
 #define DEFAULT_RX_TIMEOUT 10000
 
-#define LPS_TWR2_ENABLE 1
+#define LPS_TDOA_ENABLE 1
 // The anchor position can be set using parameters
 // As an option you can set a static position in this file and set
 // combinedAnchorPositionOk to enable sending the anchor rangings to the Kalman filter

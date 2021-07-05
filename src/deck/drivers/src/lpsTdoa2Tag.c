@@ -42,6 +42,8 @@
 #include "physicalConstants.h"
 #include "tdoaEngineInstance.h"
 
+#include "configblock.h"
+
 #if ANCHOR_STORAGE_COUNT < LOCODECK_NR_OF_TDOA2_ANCHORS
   #error "Tdoa engine storage is too small"
 #endif
@@ -62,6 +64,9 @@ static lpsTdoa2AlgoOptions_t defaultOptions = {
      0xbccf000000000007,
    },
 };
+
+int chang=-1000;
+int flag11 = 0;
 
 static lpsTdoa2AlgoOptions_t* options = &defaultOptions;
 
@@ -88,6 +93,11 @@ static float logClockCorrection[LOCODECK_NR_OF_TDOA2_ANCHORS];
 static uint16_t logAnchorDistance[LOCODECK_NR_OF_TDOA2_ANCHORS];
 
 static bool rangingOk;
+
+static uint8_t selfID;
+#define basicAddr 0xbccf000000000000
+static locoAddress_t selfAddress;
+bool flyornot = false;
 
 // The default receive time in the anchors for messages from other anchors is 0
 // and is overwritten with the actual receive time when a packet arrives.
@@ -185,6 +195,13 @@ static bool rxcallback(dwDevice_t *dev) {
   const rangePacket2_t* packet = (rangePacket2_t*)rxPacket.payload;
 
   bool lppSent = false;
+
+  if (rxPacket.destAddress == selfAddress){
+    chang = 0;
+    MODE = lpsMode_TWR2;
+    return lppSent;
+  }
+
   if (packet->type == PACKET_TYPE_TDOA2) {
     const uint8_t anchor = rxPacket.sourceAddress & 0xff;
 
@@ -217,6 +234,30 @@ static bool rxcallback(dwDevice_t *dev) {
       handleLppPacket(dataLength, &rxPacket, &anchorCtx);
 
       rangingOk = true;
+
+      if (twragain){
+        chang=chang+1;
+        if(chang>=32){
+          chang = 0;
+          twragain = false;
+          MODE = lpsMode_TWR2;
+          // DEBUG_PRINT("back to TWR \n");
+        }
+      }
+      //**************this for only EB*************//
+      // else if (chang>=5000){
+      //   chang=0;
+      //   MODE = lpsMode_TWR2;
+      // }else{
+      //   chang=chang+1;
+      // }
+      //******************EC~EE********************//
+
+      if (flag11==0 && flyornot){
+        flag11 = 1;
+        chang = -2000;
+      }
+
     }
   }
 
@@ -310,6 +351,9 @@ static void Initialize(dwDevice_t *dev) {
   dwCommitConfiguration(dev);
 
   rangingOk = false;
+
+  selfID = (uint8_t)(((configblockGetRadioAddress()) & 0x000000000f));
+  selfAddress = basicAddr + selfID;
 }
 
 static bool isRangingOk()
